@@ -91,29 +91,33 @@ int main(int argc, char *argv[], char *envp[]) {
         close(pipefd[0]);
         close(pipefd[1]);
 
-        short buffer_size = 10;
+        short buffer_size = 1024;
         char buffer[buffer_size];
         ssize_t readn;
 
-        FILE *fp = fopen("/tmp/test.txt", "w+");
-        int fpd = fileno(fp);
-        //int fsync(int fd);
-        //int fdatasync(int fd);
+        const char *fname = "/export/home/valhalla/atejeda/Desktop/simpled/output.log";
+        // FILE *fp = fopen(fname, "a+");
+        // int fd = fileno(fp);
 
-        
+        int fd = open(fname, O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT, 0640);
+
+        //setbuf(fp, NULL);
+
+        //setvbuf(fp, NULL, _IOLBF, 0);
+
         for(;;) {
-
             readn = read(STDIN_FILENO, buffer, buffer_size);
             if (readn == 0) 
-                ;//break;
+                break;
             if (readn == -1) 
                 break;
-            if (write(fpd, buffer, buffer_size) != readn) {
+            if (write(fd, buffer, readn) != readn) {
                 break;
             }
         }
 
-        fclose(fp); 
+        //write(STDIN_FILENO, "\n", 1);
+        close(fd);
     }
 
     //cout << "done..." << endl;
