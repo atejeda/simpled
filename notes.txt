@@ -1,0 +1,139 @@
+Processs:
+    Container structure the kernel build for an application to run.
+
+Process relationships:
+    - The parent process when fork, creates a child process.
+    - The parent is allowd to change the process GID of the child, as
+    long as the child hasn't done an execve.
+    - Child terminates, the parent can get a notification via wait or
+    waitpid.
+    - If parent shoud terminate before child, init becomes the child parent.
+
+Process Group:
+    - Process group is a set of processes all sharing the same GID,
+    is the id of the process that created the group. E.g.: a shell
+    will create a new process group that are a part of a single shell
+    pipeline.
+    - Are used to arbitrate access to a controlling terminal
+    - E.g.: foreground processes cooperating on the same task, meanwhile,
+    other processes are blocked:  find bin -printf '%f\n' | xargs make,
+    spawns to processes (find, xargs), xargs spawns another process
+    which goes bu default into the same group (running make),
+    probably make will spawn other processes.
+    Because the abobe command didn't end with &, the process group is put
+    into the foreground.
+    - Signal sent to a process group is sent to all process that belongs to that group.
+
+Session:
+    - Session is a set of processes all spawned by the same session leader
+    (direc or indirect), e.g.: a login shell is a session leader, and
+    all processes are part of the same session, any process can be the leader
+    by executing setsid (good idea to deatached to his controlling terminal).
+    - setsid, disconnect from the controller terminal to become the leader
+    of a new session, if a session leader controls a terminal is the 
+    controlling process.
+
+Controlling terminal:
+    - Terminal who a user is sitting who's interacting with the process.
+    - Process with no terminal is a deattached process.
+    - Foreground process group, only them are allowed to read from
+    the terminal, process in other process groups sharing the same
+    controller terminal are in "background" if they try to read
+    from the terminal, will get a SIGSTOP until the process group
+    is bringed to the foreground. (e.g.: control+z).
+    -Control+c, will send SIGINT to the foreground process grup.
+
+ps hints:
+    - ps  xao pid,ppid,pgid,sid,comm | head
+    - ps -efj | less
+    - If you want to find out PID/PGID/PPID/SID to certain process or pid:
+        ps -efj | grep process
+        ps -efj | grep pid
+    - OR for better formatted output, try:
+        ps -ejf | egrep 'STIME | process '
+        ps -ejf | egrep 'STIME | pid '
+
+Example:
+
+cd /home/atejeda/Desktop/daemon
+rm -rf simpled && g++ simpled.cpp -o simpled && ./simpled
+
+ps -C simpled -o "pid ppid pgid sid tty command"
+
+UID  : User id
+PID  : Process id
+PPID : Parent process id
+PGID : Process group id
+SID  : Session id
+
+# No setsid for child process:
+
+*ozz ~ % ps -efj | grep simpled
+    UID        PID  PPID  PGID   SID  C STIME TTY          TIME CMD
+    atejeda  24252 24244 24252 24252  0 22:43 pts/1    00:00:00 bash
+    atejeda  27034 24252 27034 24252  0 23:25 pts/1    00:00:00 ./simpled
+    atejeda  27035 27034 27034 24252  0 23:25 pts/1    00:00:00 ./simpled
+
+# With setsid for child
+*ozz ~ % ps -efj | head -n1
+    UID        PID  PPID  PGID   SID  C STIME TTY          TIME CMD
+    atejeda  24252 24244 24252 24252  0 22:43 pts/1    00:00:00 bash
+    atejeda  27908 24252 27908 24252  0 23:48 pts/1    00:00:00 ./simpled
+    atejeda  27909 27908 27909 27909  0 23:48 ?        00:00:00 ./simpled
+
+Sources:
+    https://www.win.tue.nl/~aeb/linux/lk/lk-10.html
+*/
+
+/*
+*ozz daemon % sleep 5 && sleep 5
+      PID  PPID  PGID   SID TT       COMMAND
+    28004 24244 28004 28004 pts/1    bash
+    28643 28004 28643 28004 pts/19   sleep 5
+    28646 28004 28646 28004 pts/19   sleep 5
+28004 bash as parentid and session id
+*/
+
+/*
+*ozz ~ % wget http://imgsrc.hubblesite.org/hu/db/images/hs-2006-10-a-full_tif.tif -O- | tee /tmp/image440MB.jpg > /dev/null
+
+*ozz ~ % ps -o "pid ppid pgid sid tty command" -C wget -C tee
+      PID  PPID  PGID   SID TT       COMMAND
+    28783 24244 28783 28783 pts/1    bash
+    29367 28783 29367 28783 pts/1    wget http://imgsrc.hubblesite.org/hu/db/images/hs-2006-10-a-full_tif.tif -O-
+    29368 28783 29367 28783 pts/1    tee /tmp/image440MB.jpg
+
+- both processes, wget and tee are childs of bash and belongs to the SID set by bash (28783)
+- wget sets the PID for itself and for tee.
+
+*/
+
+
+/*
+*ozz ~ % ps -o "pid ppid pgid sid tty command" -C wget -C less
+
+      PID  PPID  PGID   SID TT       COMMAND
+    28783 24244 28783 28783 pts/1    bash
+    29691 28783 29691 28783 pts/1    wget http://imgsrc.hubblesite.org/hu/db/images/hs-2006-10-a-full_tif.tif -O-
+    29692 28783 29691 28783 pts/1    less
+
+*ozz ~ % kill -9 29691
+
+*ozz ~ % ps -o "pid ppid pgid sid tty command" -C wget -C less
+
+  PID  PPID  PGID   SID TT       COMMAND
+29692 28783 29691 28783 pts/1    less
+
+-
+
+http://www.gmarik.info/blog/2012/orphan-vs-zombie-vs-daemon-processes/
+http://stackoverflow.com/questions/881388/what-is-the-reason-for-performing-a-double-fork-when-creating-a-daemon
+
+#This will create a nice process tree
+(sleep 1000 & ( sleep 1000&  sleep 1000& sleep 1000)&  sleep 1000 )&
+#View it with 
+ps T --forest
+#Or recursively get all the nodes (this should match the corresponding part of the above ps command)
+walk_processes() { echo $1; cat /proc/$1/task/$1/children | while read -d ' ' pid; do walk_processes $pid; done;  }
+walk_processes $!
+*/
