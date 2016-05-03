@@ -26,6 +26,7 @@ using namespace std;
 
 int main(int argc, char *argv[], char *envp[]) {
     // argv[1] = pid and lock path
+    // argv[2] =  
 
     // lazy validation
     if (argc < 2) {
