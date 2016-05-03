@@ -7,6 +7,7 @@
 #include <cstdlib> 
 #include <cstring>
 #include <cassert>
+#include <cstdio>
 
 #include <unistd.h>
 #include <sys/file.h>
@@ -66,35 +67,12 @@ int main(int argc, char *argv[], char *envp[]) {
 
     if (fid == -1) {
         return -1;
+
     } else if (fid == 0) {
-        /* pipe pipefd reader, child */
+
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
         close(pipefd[1]);
-        if (pipefd[1] != STDIN_FILENO) {
-            if (dup2(pipefd[0], STDIN_FILENO) == -1)
-                return -1;
-            if (close(pipefd[1]) == -1)
-                return -1;
-        }
-
-        short sbuffer = 32;
-        char buffer[sbuffer];
-        ssize_t nread;
-
-        for(;;) {
-            nread = read(STDOUT_FILENO, buffer, sbuffer);
-        }
-
-    } else {
-        /* pipe pipefd writer, parent */
-        if (close(pipefd[0]))
-            return -1;
-
-        if (pipefd[1] != STDOUT_FILENO) {
-            if (dup2(pipefd[1], STDOUT_FILENO) == -1)
-                return -1;
-            if (close(pipefd[1]) == -1)
-                return -1;
-        }
 
         pid_t pid = getpid();
 
@@ -103,10 +81,42 @@ int main(int argc, char *argv[], char *envp[]) {
         umask(0);
         chdir("/");
 
-        if (execve(fexec, fargs, envp)
+        if (execve(fexec, fargs, envp) == -1) {
             return -1;
+        }
+
+    } else {
+
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        short buffer_size = 10;
+        char buffer[buffer_size];
+        ssize_t readn;
+
+        FILE *fp = fopen("/tmp/test.txt", "w+");
+        int fpd = fileno(fp);
+        //int fsync(int fd);
+        //int fdatasync(int fd);
+
+        
+        for(;;) {
+
+            readn = read(STDIN_FILENO, buffer, buffer_size);
+            if (readn == 0) 
+                ;//break;
+            if (readn == -1) 
+                break;
+            if (write(fpd, buffer, buffer_size) != readn) {
+                break;
+            }
+        }
+
+        fclose(fp); 
     }
 
+    //cout << "done..." << endl;
     /* portable? */
     /* exit(EXIT_FAILURE); */
     /* exit(EXIT_SUCESS); */
