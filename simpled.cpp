@@ -58,8 +58,7 @@ int main(int argc, char *argv[], char *envp[]) {
         return 0;
     }
 
-    /* manage pipe redirection, parent process read, child writes */
-
+    /* manage pipe redirection */
     if (pipe(pipefd) == -1)
         return -1;
 
@@ -68,7 +67,25 @@ int main(int argc, char *argv[], char *envp[]) {
     if (fid == -1) {
         return -1;
     } else if (fid == 0) {
-        /* pipe pipefd writer, child */
+        /* pipe pipefd reader, child */
+        close(pipefd[1]);
+        if (pipefd[1] != STDIN_FILENO) {
+            if (dup2(pipefd[0], STDIN_FILENO) == -1)
+                return -1;
+            if (close(pipefd[1]) == -1)
+                return -1;
+        }
+
+        short sbuffer = 32;
+        char buffer[sbuffer];
+        ssize_t nread;
+
+        for(;;) {
+            nread = read(STDOUT_FILENO, buffer, sbuffer);
+        }
+
+    } else {
+        /* pipe pipefd writer, parent */
         if (close(pipefd[0]))
             return -1;
 
@@ -81,20 +98,13 @@ int main(int argc, char *argv[], char *envp[]) {
 
         pid_t pid = getpid();
 
+        // create the lockfile and write the pid
+
         umask(0);
         chdir("/");
 
         if (execve(fexec, fargs, envp)
             return -1;
-    } else {
-        /* pipe pipefd reader, parent */
-        close(pipefd[1]);
-        if (pipefd[1] != STDIN_FILENO) {
-            if (dup2(pipefd[0], STDIN_FILENO) == -1)
-                return -1;
-            if (close(pipefd[1]) == -1)
-                return -1;
-        }
     }
 
     /* portable? */
