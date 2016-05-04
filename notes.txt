@@ -182,7 +182,10 @@ int main(int argc, char *argv[], char *envp[]) {
     char **fargs = argv + 2;
 
     /* 0 read, 1 write */
-    int pipefd[2]; 
+    int pipefd[2];
+
+    setbuf(stdout, NULL);
+    setbuf(stdin, NULL);
     
     switch (fork()) {
     case -1: 
@@ -228,37 +231,45 @@ int main(int argc, char *argv[], char *envp[]) {
         umask(0);
         chdir("/");
 
+        printf("I'm about to start ....");
+
         if (execve(fexec, fargs, envp) == -1) {
-            cout << "errorrrrrrrrrrrr" << endl;
             return -1;
         }
 
     } else {
 
+        int fd = open(fname, O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT, 0640);
+
         dup2(pipefd[0], STDIN_FILENO);
         close(pipefd[0]);
         close(pipefd[1]);
 
-        short buffer_size = 8;
-        char buffer[buffer_size];
+        char buffer[1024];
         ssize_t readn;
 
-        FILE *fp = fopen("/tmp/test.txt", "w+");
-        int fpd = fileno(fp);
+        const char *fname = "/home/atejeda/Desktop/daemon/output.log";
+        FILE *fp = fopen(fname, "a+");
+        setbuf(fp, NULL);
+        int fd = fileno(fp);
+
+        // int fd = open(fname, O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT, 0640);
+        //setbuf(fp, NULL);
+        //setvbuf(fp, NULL, _IOLBF, 0);
 
         for(;;) {
-            readn = read(STDIN_FILENO, buffer, buffer_size);
+            readn = read(STDIN_FILENO, buffer, sizeof(buffer));
             if (readn == 0) 
-                ;//break;
+                break;
             if (readn == -1) 
                 break;
-            if (write(fpd, buffer, buffer_size) != readn) {
+            if (write(fd, buffer, readn) != readn) {
                 break;
-            }
+            }  
         }
 
+        //write(STDIN_FILENO, "\n", 1);
         fclose(fp);
-        
     }
 
     //cout << "done..." << endl;
@@ -267,3 +278,27 @@ int main(int argc, char *argv[], char *envp[]) {
     /* exit(EXIT_SUCESS); */
     return 0;
 }
+
+
+
+/*
+
+int main(int argc, char *argv) {
+
+int fd; //file descriptor to the file we will redirect ls's output
+
+if((fd = open("dirlist.txt", O_RDWR | O_CREAT))==-1){ //open the file
+  perror("open");
+  return 1;
+}
+
+dup2(fd,STDOUT_FILENO); //copy the file descriptor fd into standard output
+dup2(fd,STDERR_FILENO); //same, for the standard error
+close(fd); //close the file descriptor as we don't need it more
+
+execl( "/bin/ls" , "ls" , "-la" , (char *) 0 );
+
+return 0;
+}  
+
+*/
