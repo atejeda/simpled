@@ -17,7 +17,7 @@
  * code reusage by using functions (DRY approach) and error checking for
  * the system calls, this daemon can be used for learning purposes, use it
  * under your own responsability.
- * Build it by: gcc -std=gnu99 -w simpled.c -o simpled.
+ * Build it: gcc -std=gnu99 -w simpled.c -o simpled
  *
  * @see https://github.com/atejeda/simpled
  * @see http://man7.org/linux/man-pages/index.html
@@ -26,7 +26,7 @@
 ## Build
 
 ```
-
+gcc -std=gnu99 -w simpled.c -o simpled
 ```
 
 ## Usage
