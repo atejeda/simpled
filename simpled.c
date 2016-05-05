@@ -259,7 +259,7 @@ int main(int argc, char *argv[], char *envp[]) {
     }
 
     /* redirect stdout, stderr to the logfile */
-    inr logfd_f =  O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT;
+    int logfd_f =  O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT;
     int logfd = open(iargs.logf, logfd_f, 0640);
     setvbuf(stdout, NULL, _IOLBF, 1024);
     dup2(logfd, STDOUT_FILENO);
@@ -279,7 +279,7 @@ int main(int argc, char *argv[], char *envp[]) {
     fputs(pidc, pidff);
     fclose(pidff);
 
-    if pidfdl = open(iargs.pidf, O_WRONLY);
+    int pidfdl = open(iargs.pidf, O_WRONLY);
     if (flock(pidfdl, LOCK_EX) == -1) {
         fprintf(stderr, "file lock: %s", strerror(errno));
         dprintf(epiped[1], "file lock: %s", strerror(errno));
