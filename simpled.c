@@ -1,7 +1,7 @@
-/**
-    ```
-    rm -rf simpled && gcc -std=gnu99 -w simpled.cpp -o simpled && ./simpled $PWD/ping.pid $PWD/ping.log -- `which ping` -c4 localhost
-    ````
+/*
+ TODO
+ - Needs error checking everywhere (forks, descriptors, streams)
+ - Lot of code needs to be refactored in reusable functions
 */
 
 #ifndef __linux__
@@ -13,11 +13,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <errno.h>
-
 #include <stdbool.h>
 #include <time.h>
 
 #include <unistd.h>
+#include <signal.h>
 #include <sys/file.h>
 #include <sys/fcntl.h>
 #include <sys/types.h>
@@ -28,6 +28,7 @@ typedef struct {
     char *logf;
     char *fexec;
     char **fargs;
+    char *action;
 } iargs_t;
 
 void argvp(const char **args) {
@@ -36,30 +37,86 @@ void argvp(const char **args) {
     printf("\n");
 }
 
+int isalive(const char *pidf) {
+    if (access(pidf, F_OK) != -1) {
+        FILE *pidfs = fopen(pidf, "r");
+        char pidc[5];
+        fgets(pidc, 5, pidfs);
+        close(pidfs);
+        
+        char *endp;
+        int pid = strtol(pidc, &endp, 10);
+
+        if (kill(pid, 0) == -1) {
+            return 1;
+        }
+
+        return 0;
+    } else {
+        return 1;
+    } 
+}
+
+void killd(const char *pidf) {
+    if (access(pidf, F_OK ) != -1) {
+        FILE *pidfs = fopen(pidf, "r");
+        char pidc[5];
+        fgets(pidc, 5, pidfs);
+        close(pidfs);
+        
+        char *endp;
+        int pid = strtol(pidc, &endp, 10);
+
+        kill(pid, SIGINT);
+        remove(pidf);
+    } 
+}
+
 int main(int argc, char *argv[], char *envp[]) {
     char helpm[90];
-    char *helpc = "Usage: %s -p /path/pidfile -l /path/logfile -- /path/exec [args]\n";
+    char *helpc = "Usage: %s -p /path/pidfile -l /path/logfile -a {start|stop|status} -- /path/exec [args]\n";
     sprintf(helpm, helpc, argv[0]);
 
     iargs_t iargs;
 
     int opt;
-    while ((opt = getopt(argc, argv, "p:l:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:l:a:")) != -1) {
         switch (opt) {
         case 'p':
             iargs.pidf = optarg;
             break;
         case 'l':
             iargs.logf = optarg;
-            break;  
+            break;
+        case 'a':
+            if (!strcmp(optarg, "start") || !strcmp(optarg, "status") || !strcmp(optarg, "stop")) {
+                iargs.action = optarg;
+            } else {
+                fprintf(stderr, helpm);
+                exit(EXIT_FAILURE); 
+            }
+            break;
         default:
             fprintf(stderr, helpm);
             exit(EXIT_FAILURE);
         }
     }
 
+    if (!strcmp(iargs.action, "status")) {
+        if (!isalive(iargs.pidf)) {
+            exit(EXIT_SUCCESS);
+        } else {
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (!strcmp(iargs.action, "stop")) {
+        killd(iargs.pidf);
+        exit(EXIT_SUCCESS);
+    }
+
     /* +2 = argv[0], command */
-    if (optind < 4 || argc < optind + 2) {
+    if (optind < 7 || argc < optind + 2) {
         fprintf(stderr, helpm);
         exit(EXIT_FAILURE);
     }
@@ -102,8 +159,11 @@ int main(int argc, char *argv[], char *envp[]) {
         ssize_t readn;
         char buffer[512];
 
+        bool dobreak;
+
         /* check error */
-        for (;;) {
+        dobreak = false;
+        for (; !dobreak;) {
             readn = read(epiped[0], buffer, sizeof(buffer));
             switch(readn) {
             case -1:
@@ -112,6 +172,7 @@ int main(int argc, char *argv[], char *envp[]) {
                 close(spiped[0]);
                 exit(EXIT_FAILURE);
             case 0:
+                dobreak = true; 
                 close(epiped[0]);
                 break; // end of file
             default:
@@ -124,7 +185,12 @@ int main(int argc, char *argv[], char *envp[]) {
         }
 
         /* read success */
-        for (;;) {
+
+        pid_t daemonpid = -9;
+        char *endp;
+
+        dobreak = false;
+        for (; !dobreak;) {
             readn = read(spiped[0], buffer, sizeof(buffer));
             switch(readn) {
             case -1:
@@ -133,14 +199,22 @@ int main(int argc, char *argv[], char *envp[]) {
                 close(spiped[0]);
                 exit(EXIT_FAILURE);
             case 0:
+                dobreak = true;
                 close(spiped[0]);
                 break;
             default:
-                dprintf(STDOUT_FILENO, buffer);
-                close(epiped[0]);
-                close(spiped[0]);
-                exit(EXIT_FAILURE);
+                daemonpid = strtol(buffer, &endp, 10);
+                dprintf(STDOUT_FILENO, "pid = %s\n", buffer);
+                break;
             }
+        }
+
+        /* check if process really exists*/
+        sleep(3);
+
+        if (kill(daemonpid, 0) == -1) {
+            fprintf(stderr, "Doesn't seems to be alive, check log file: %s\n", iargs.logf);
+            exit(EXIT_FAILURE);
         }
         
         exit(EXIT_SUCCESS);
@@ -172,6 +246,7 @@ int main(int argc, char *argv[], char *envp[]) {
     dup2(logfd, STDERR_FILENO);
     close(logfd);
 
+    printf("\n");
     argvp(iargs.fargs);
 
     /* register flock and process pid */
@@ -186,13 +261,16 @@ int main(int argc, char *argv[], char *envp[]) {
 
     if (flock(open(iargs.pidf, O_WRONLY), LOCK_EX) == -1) {
         fprintf(stderr, "file lock: %s", strerror(errno));
+        dprintf(epiped[1], "file lock: %s", strerror(errno));
         _exit(EXIT_FAILURE);
     }
 
     time_t t = time(NULL);
     struct tm *local = gmtime(&t);
-    dprintf("[%s]", pidc);
+    dprintf(spiped[1], "%i", pid);
     printf("[%s] %s", pidc, asctime(local));
+
+    printf("\n");
 
     umask(0);
     chdir("/");
@@ -207,7 +285,7 @@ int main(int argc, char *argv[], char *envp[]) {
 
         flock(open(iargs.pidf, O_WRONLY), LOCK_UN);
 
-        // delete pid file
+        remove(iargs.pidf);
         
         _exit(EXIT_FAILURE);
     }
@@ -217,21 +295,35 @@ int main(int argc, char *argv[], char *envp[]) {
 
 /*
 rm -rf simpled &&  gcc -std=gnu99 -w simpled.c -o simpled && ./simpled  -l $PWD/ping.log -p $PWD/ping.pid -- `which ping` -c4 localhost
-*/
 
-/*
 
-ssize_t read(int fd, void *buf, size_t count);
-ssize_t write(int fd, const void *buf, size_t count);
 
-The best solution I know is using pipes to communicate the success or failure of exec:
+#include <stdio.h>
+#include <string.h>
 
-    Before forking, open a pipe in the parent process.
-    After forking, the parent closes the writing end of the pipe and reads from the reading end.
-    The child closes the reading end and sets the close-on-exec flag for the writing end.
-    The child calls exec.
-    If exec fails, the child writes the error code back to the parent using the pipe, then exits.
-    The parent reads eof (a zero-length read) if the child successfully performed exec, since close-on-exec made successful exec close the writing end of the pipe. Or, if exec failed, the parent reads the error code and can proceed accordingly. Either way, the parent blocks until the child calls exec.
-    The parent closes the reading end of the pipe.
+int main ()
+{
+   int ret;
+   FILE *fp;
+   char filename[] = "file.txt";
+
+   fp = fopen(filename, "w");
+
+   fprintf(fp, "%s", "This is tutorialspoint.com");
+   fclose(fp);
+   
+   ret = remove(filename);
+
+   if(ret == 0) 
+   {
+      printf("File deleted successfully");
+   }
+   else 
+   {
+      printf("Error: unable to delete the file");
+   }
+   
+   return(0);
+}
 
 */
