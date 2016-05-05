@@ -1,15 +1,41 @@
-/*
-    @author github.com/atejeda
-    @description This applcation daemonize any app in linux, to be used for 
-                 learning purposes
-    
-    build: gcc -std=gnu99 -w simpled.c -o simpled
-    
-    TODO
-    - Needs error checking everywhere (forks, descriptors, streams)
-    - Lot of code needs to be refactored in reusable functions
-*/
+/**
+ * Process/application daemonizer for linux systems
+ * Copyright (C) 2016 https://github.com/atejeda/simpled
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
+/**
+ * @file simpled.c
+ * @author https://github.com/atejeda/simpled
+ * @date May 2016
+ * @brief Process/application daemonizer for linux systems (portable?).
+ *
+ * This tiny C application is a process daemonizer, it executes it as a deamon
+ * (system background "?") with no terminal attached and with stdout and 
+ * stderr redirection to a log file, also saves the pid in a file that is used
+ * as a lock file (flock) as well.
+ * Even though it works, there's serveral things needs to be improved like
+ * code reusage by using functions (DRY approach) and error checking for
+ * the system calls, this daemon can be used for learning purposes, use it
+ * under your own responsability.
+ * Build it by: gcc -std=gnu99 -w simpled.c -o simpled.
+ *
+ * @see https://github.com/atejeda/simpled
+ * @see http://man7.org/linux/man-pages/index.html
+ */
+ 
 #ifndef __linux__
 #error "Only linux is supported"
 #endif
