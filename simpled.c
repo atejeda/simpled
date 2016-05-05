@@ -1,6 +1,7 @@
 /*
     @author github.com/atejeda
-    @description This applcation daemonize any app in linux, to be used for learning purposes
+    @description This applcation daemonize any app in linux, to be used for 
+                 learning purposes
     
     build: gcc -std=gnu99 -w simpled.c -o simpled
     
@@ -83,7 +84,11 @@ void killd(const char *pidf) {
 
 int main(int argc, char *argv[], char *envp[]) {
     char helpm[90];
-    char *helpc = "Usage: %s -p /path/pidfile -l /path/logfile -a {start|stop|status} -- /path/exec [args]\n";
+    char *helpc = "Usage: %s -p "
+                  "/path/pidfile -l "
+                  "/path/logfile -a {start|stop|status}"
+                  "-- "
+                  "/path/exec [args]\n";  
     sprintf(helpm, helpc, argv[0]);
 
     iargs_t iargs;
@@ -98,7 +103,9 @@ int main(int argc, char *argv[], char *envp[]) {
             iargs.logf = optarg;
             break;
         case 'a':
-            if (!strcmp(optarg, "start") || !strcmp(optarg, "status") || !strcmp(optarg, "stop")) {
+            if (!strcmp(optarg, "start") || 
+                !strcmp(optarg, "status") || 
+                !strcmp(optarg, "stop")) {
                 iargs.action = optarg;
             } else {
                 fprintf(stderr, helpm);
@@ -111,6 +118,7 @@ int main(int argc, char *argv[], char *envp[]) {
         }
     }
 
+    /* get status */
     if (!strcmp(iargs.action, "status")) {
         if (!isalive(iargs.pidf)) {
             exit(EXIT_SUCCESS);
@@ -119,6 +127,7 @@ int main(int argc, char *argv[], char *envp[]) {
         }
     }
 
+    /* stop daemon process */
     if (!strcmp(iargs.action, "stop")) {
         killd(iargs.pidf);
         exit(EXIT_SUCCESS);
@@ -130,7 +139,7 @@ int main(int argc, char *argv[], char *envp[]) {
         exit(EXIT_FAILURE);
     }
 
-    /* double dash */
+    /* double dash option checking */
     bool ddash = false;
     for (char **c = argv; *c != NULL; c++) {
         if (ddash = !strcmp(*c, "--"))
@@ -142,16 +151,17 @@ int main(int argc, char *argv[], char *envp[]) {
         exit(EXIT_FAILURE);
     }
 
+    /* so far so good */
+
     iargs.fexec = argv[optind];
     iargs.fargs = argv + optind;
 
     argvp(iargs.fargs);
 
-    /* 0 r, 1 w*/
+    /* epiped for errors, and spiped for get the double forked process pid */
     int epiped[2];
-    pipe2(epiped, O_CLOEXEC);
-
     int spiped[2];
+    pipe2(epiped, O_CLOEXEC);
     pipe2(spiped, O_CLOEXEC);
 
     /* start to daemonize process */
@@ -195,7 +205,7 @@ int main(int argc, char *argv[], char *envp[]) {
 
         /* read success */
 
-        pid_t daemonpid = -9;
+        pid_t dpid = -9;
         char *endp;
 
         dobreak = false;
@@ -212,7 +222,7 @@ int main(int argc, char *argv[], char *envp[]) {
                 close(spiped[0]);
                 break;
             default:
-                daemonpid = strtol(buffer, &endp, 10);
+                dpid = strtol(buffer, &endp, 10);
                 dprintf(STDOUT_FILENO, "pid = %s\n", buffer);
                 break;
             }
@@ -221,8 +231,8 @@ int main(int argc, char *argv[], char *envp[]) {
         /* check if process really exists*/
         sleep(3);
 
-        if (kill(daemonpid, 0) == -1) {
-            fprintf(stderr, "Doesn't seems to be alive, check log file: %s\n", iargs.logf);
+        if (kill(dpid, 0) == -1) {
+            fprintf(stderr, "Is alive?, check log file: %s\n", iargs.logf);
             exit(EXIT_FAILURE);
         }
         
@@ -249,7 +259,8 @@ int main(int argc, char *argv[], char *envp[]) {
     }
 
     /* redirect stdout, stderr to the logfile */
-    int logfd = open(iargs.logf, O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT, 0640);
+    inr logfd_f =  O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT;
+    int logfd = open(iargs.logf, logfd_f, 0640);
     setvbuf(stdout, NULL, _IOLBF, 1024);
     dup2(logfd, STDOUT_FILENO);
     dup2(logfd, STDERR_FILENO);
@@ -268,7 +279,8 @@ int main(int argc, char *argv[], char *envp[]) {
     fputs(pidc, pidff);
     fclose(pidff);
 
-    if (flock(open(iargs.pidf, O_WRONLY), LOCK_EX) == -1) {
+    if pidfdl = open(iargs.pidf, O_WRONLY);
+    if (flock(pidfdl, LOCK_EX) == -1) {
         fprintf(stderr, "file lock: %s", strerror(errno));
         dprintf(epiped[1], "file lock: %s", strerror(errno));
         _exit(EXIT_FAILURE);
@@ -277,9 +289,7 @@ int main(int argc, char *argv[], char *envp[]) {
     time_t t = time(NULL);
     struct tm *local = gmtime(&t);
     dprintf(spiped[1], "%i", pid);
-    printf("[%s] %s", pidc, asctime(local));
-
-    printf("\n");
+    printf("[%s] %s\n", pidc, asctime(local));
 
     umask(0);
     chdir("/");
