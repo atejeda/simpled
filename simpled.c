@@ -35,7 +35,7 @@
  * @see https://github.com/atejeda/simpled
  * @see http://man7.org/linux/man-pages/index.html
  */
- 
+
 #ifndef __linux__
 #error "Only linux is supported"
 #endif
@@ -318,14 +318,12 @@ int main(int argc, char *argv[], char *envp[]) {
     chdir("/");
 
     if (execve(iargs.fexec, iargs.fargs, envp) == -1) {
-        // refactor it to use dprintf instead
         char execveerr[512];
         sprintf(execveerr, "%s: %s\n", iargs.fexec, strerror(errno));
-
         fprintf(stderr, execveerr);
         dprintf(epiped[1], execveerr);
 
-        flock(open(iargs.pidf, O_WRONLY), LOCK_UN);
+        flock(pidfdl, LOCK_UN);
 
         remove(iargs.pidf);
         
