@@ -321,7 +321,7 @@ int main(int argc, char *argv[], char *envp[]) {
     printf("[%s] %s\n", pidc, asctime(local));
 
     umask(0);
-    chdir("/");
+    //chdir("/");
 
     if (execve(iargs.fexec, iargs.fargs, envp) == -1) {
         char execveerr[512];
