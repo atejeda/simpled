@@ -114,6 +114,12 @@ int main(int argc, char *argv[], char *envp[]) {
                   "/path/exec [args]\n";  
     sprintf(helpm, helpc, argv[0]);
 
+    if (argc < 7) {
+        fprintf(stderr, helpm);
+        exit(EXIT_FAILURE);
+    }
+
+
     iargs_t iargs;
 
     int opt;
