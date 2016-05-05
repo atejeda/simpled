@@ -23,7 +23,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-
 typedef struct {
     char *pidf;
     char *logf;
@@ -31,17 +30,16 @@ typedef struct {
     char **fargs;
 } iargs_t;
 
-
 void argvp(const char **args) {
-    printf("[ ");
     for (char **c = args; *c != NULL; c++)
         printf("%s ", *c);
-    printf("]\n");
+    printf("\n");
 }
 
 int main(int argc, char *argv[], char *envp[]) {
     char helpm[90];
-    sprintf(helpm, "Usage: %s -p /path/pidfile -l /path/logfile -- /path/exec [args]\n", argv[0]);
+    char *helpc = "Usage: %s -p /path/pidfile -l /path/logfile -- /path/exec [args]\n";
+    sprintf(helpm, helpc, argv[0]);
 
     iargs_t iargs;
 
@@ -83,15 +81,69 @@ int main(int argc, char *argv[], char *envp[]) {
 
     argvp(iargs.fargs);
 
+    /* 0 r, 1 w*/
+    int epiped[2];
+    pipe2(epiped, O_CLOEXEC);
+
+    int spiped[2];
+    pipe2(spiped, O_CLOEXEC);
+
     /* start to daemonize process */
 
     switch (fork()) {
     case -1: 
-        return -1;
+        exit(EXIT_FAILURE);
     case 0: 
         break;
-    default: 
-        return 0;
+    default:
+        close(epiped[1]);
+        close(spiped[1]);
+
+        ssize_t readn;
+        char buffer[512];
+
+        /* check error */
+        for (;;) {
+            readn = read(epiped[0], buffer, sizeof(buffer));
+            switch(readn) {
+            case -1:
+                fprintf(stderr, "%s: %s", iargs.fexec);
+                close(epiped[0]);
+                close(spiped[0]);
+                exit(EXIT_FAILURE);
+            case 0:
+                close(epiped[0]);
+                break; // end of file
+            default:
+                // write... readn
+                dprintf(STDOUT_FILENO, buffer);
+                close(epiped[0]);
+                close(spiped[0]);
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        /* read success */
+        for (;;) {
+            readn = read(spiped[0], buffer, sizeof(buffer));
+            switch(readn) {
+            case -1:
+                fprintf(stderr, "%s: %s", iargs.fexec);
+                close(epiped[0]);
+                close(spiped[0]);
+                exit(EXIT_FAILURE);
+            case 0:
+                close(spiped[0]);
+                break;
+            default:
+                dprintf(STDOUT_FILENO, buffer);
+                close(epiped[0]);
+                close(spiped[0]);
+                exit(EXIT_FAILURE);
+            }
+        }
+        
+        exit(EXIT_SUCCESS);
     }
 
     if(setsid() == -1)
@@ -100,14 +152,20 @@ int main(int argc, char *argv[], char *envp[]) {
     /* avoid to be SID leader */
     switch (fork()) {
     case -1: 
-        return -1;
-    case 0:  
+        exit(EXIT_FAILURE);
+    case 0:
+        close(epiped[0]);
+        close(spiped[0]);  
         break;
     default:
-        return 0;
+        close(epiped[1]);
+        close(epiped[0]);
+        close(spiped[1]);
+        close(spiped[0]);
+        exit(EXIT_SUCCESS);
     }
 
-    /* redirect stdout to the logfile */
+    /* redirect stdout, stderr to the logfile */
     int logfd = open(iargs.logf, O_APPEND | O_NONBLOCK | O_SYNC | O_WRONLY | O_CREAT, 0640);
     setvbuf(stdout, NULL, _IOLBF, 1024);
     dup2(logfd, STDOUT_FILENO);
@@ -116,7 +174,7 @@ int main(int argc, char *argv[], char *envp[]) {
 
     argvp(iargs.fargs);
 
-    /* register flock process pid */
+    /* register flock and process pid */
 
     pid_t pid = getpid();
     char pidc[8];
@@ -124,29 +182,34 @@ int main(int argc, char *argv[], char *envp[]) {
 
     FILE *pidff = fopen(iargs.pidf, "w+");
     fputs(pidc, pidff);
-    
-    int pidfd = fileno(pidff);
-    if (flock(pidfd, LOCK_EX) == -1) {
-        if (errno == EWOULDBLOCK) {
-            fprintf(stderr, "already locked...");
-            exit(EXIT_FAILURE);
-        }
-
-        fprintf(stderr, "error locking the file");
-    }
-
     fclose(pidff);
+
+    if (flock(open(iargs.pidf, O_WRONLY), LOCK_EX) == -1) {
+        fprintf(stderr, "file lock: %s", strerror(errno));
+        _exit(EXIT_FAILURE);
+    }
 
     time_t t = time(NULL);
     struct tm *local = gmtime(&t);
-    printf("PID = %s, UTC = %s", pidc, asctime(local));
+    dprintf("[%s]", pidc);
+    printf("[%s] %s", pidc, asctime(local));
 
     umask(0);
     chdir("/");
 
     if (execve(iargs.fexec, iargs.fargs, envp) == -1) {
-        // flock(int fd, LOCK_UN); 
-        exit(EXIT_FAILURE);
+        // refactor it to use dprintf instead
+        char execveerr[512];
+        sprintf(execveerr, "%s: %s\n", iargs.fexec, strerror(errno));
+
+        fprintf(stderr, execveerr);
+        dprintf(epiped[1], execveerr);
+
+        flock(open(iargs.pidf, O_WRONLY), LOCK_UN);
+
+        // delete pid file
+        
+        _exit(EXIT_FAILURE);
     }
 
     return 0;
@@ -157,6 +220,10 @@ rm -rf simpled &&  gcc -std=gnu99 -w simpled.c -o simpled && ./simpled  -l $PWD/
 */
 
 /*
+
+ssize_t read(int fd, void *buf, size_t count);
+ssize_t write(int fd, const void *buf, size_t count);
+
 The best solution I know is using pipes to communicate the success or failure of exec:
 
     Before forking, open a pipe in the parent process.
