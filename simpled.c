@@ -1,7 +1,12 @@
 /*
- TODO
- - Needs error checking everywhere (forks, descriptors, streams)
- - Lot of code needs to be refactored in reusable functions
+    @author github.com/atejeda
+    @description This applcation daemonize any app in linux, to be used for learning purposes
+    
+    build: gcc -std=gnu99 -w simpled.c -o simpled
+    
+    TODO
+    - Needs error checking everywhere (forks, descriptors, streams)
+    - Lot of code needs to be refactored in reusable functions
 */
 
 #ifndef __linux__
@@ -40,12 +45,14 @@ void argvp(const char **args) {
 int isalive(const char *pidf) {
     if (access(pidf, F_OK) != -1) {
         FILE *pidfs = fopen(pidf, "r");
-        char pidc[5];
-        fgets(pidc, 5, pidfs);
+        char pidc[6];
+        fgets(pidc, 6, pidfs);
         close(pidfs);
         
         char *endp;
         int pid = strtol(pidc, &endp, 10);
+
+        printf("%i\n", pid);
 
         if (kill(pid, 0) == -1) {
             return 1;
@@ -60,14 +67,16 @@ int isalive(const char *pidf) {
 void killd(const char *pidf) {
     if (access(pidf, F_OK ) != -1) {
         FILE *pidfs = fopen(pidf, "r");
-        char pidc[5];
-        fgets(pidc, 5, pidfs);
+        char pidc[6];
+        fgets(pidc, 6, pidfs);
         close(pidfs);
         
         char *endp;
         int pid = strtol(pidc, &endp, 10);
 
-        kill(pid, SIGINT);
+        printf("%i\n", pid);
+
+        kill(pid, SIGKILL);
         remove(pidf);
     } 
 }
@@ -292,38 +301,3 @@ int main(int argc, char *argv[], char *envp[]) {
 
     return 0;
 }
-
-/*
-rm -rf simpled &&  gcc -std=gnu99 -w simpled.c -o simpled && ./simpled  -l $PWD/ping.log -p $PWD/ping.pid -- `which ping` -c4 localhost
-
-
-
-#include <stdio.h>
-#include <string.h>
-
-int main ()
-{
-   int ret;
-   FILE *fp;
-   char filename[] = "file.txt";
-
-   fp = fopen(filename, "w");
-
-   fprintf(fp, "%s", "This is tutorialspoint.com");
-   fclose(fp);
-   
-   ret = remove(filename);
-
-   if(ret == 0) 
-   {
-      printf("File deleted successfully");
-   }
-   else 
-   {
-      printf("Error: unable to delete the file");
-   }
-   
-   return(0);
-}
-
-*/
