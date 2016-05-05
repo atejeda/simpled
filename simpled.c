@@ -78,7 +78,7 @@ int isalive(const char *pidf) {
         
         char *endp;
         int pid = strtol(pidc, &endp, 10);
-        printf("%i\n", pid);
+        printf("[%i]\n", pid);
 
         if (kill(pid, 0) == -1)
             return 1;
@@ -97,8 +97,7 @@ void killd(const char *pidf) {
         
         char *endp;
         int pid = strtol(pidc, &endp, 10);
-
-        printf("%i\n", pid);
+        printf("[%i]\n", pid);
 
         kill(pid, SIGKILL);
         remove(pidf);
@@ -118,7 +117,6 @@ int main(int argc, char *argv[], char *envp[]) {
         fprintf(stderr, helpm);
         exit(EXIT_FAILURE);
     }
-
 
     iargs_t iargs;
 
@@ -252,7 +250,7 @@ int main(int argc, char *argv[], char *envp[]) {
                 break;
             default:
                 dpid = strtol(buffer, &endp, 10);
-                dprintf(STDOUT_FILENO, "pid = %s\n", buffer);
+                dprintf(STDOUT_FILENO, "[%s]\n", buffer);
                 break;
             }
         }
