@@ -52,13 +52,10 @@ int isalive(const char *pidf) {
         
         char *endp;
         int pid = strtol(pidc, &endp, 10);
-
         printf("%i\n", pid);
 
-        if (kill(pid, 0) == -1) {
+        if (kill(pid, 0) == -1)
             return 1;
-        }
-
         return 0;
     } else {
         return 1;
