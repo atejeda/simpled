@@ -108,7 +108,7 @@ int main(int argc, char *argv[], char *envp[]) {
     char helpm[90];
     char *helpc = "Usage: %s -p "
                   "/path/pidfile -l "
-                  "/path/logfile -a {start|stop|status}"
+                  "/path/logfile -a {start|stop|status} "
                   "-- "
                   "/path/exec [args]\n";  
     sprintf(helpm, helpc, argv[0]);
