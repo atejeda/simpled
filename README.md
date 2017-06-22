@@ -41,4 +41,4 @@ Usage: simpled -p /path/pidfile -l /path/logfile -a {start|stop|status} -- /path
 * stop: return 0, removes the pid file and kill the process with SIGKILL
 * status: return 0 if process exists based on the pid written on the pidfile, anything else on error
 
-All the stdout and stderr process to be daemonized is redirected to the logfile. I have disabled chdir to / so this might block you mounted dirs.
+All the stdout and stderr process to be daemonized is redirected to the logfile. I have disabled chdir to / so this might block your mounted dirs.
